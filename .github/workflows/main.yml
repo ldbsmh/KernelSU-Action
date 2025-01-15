@@ -6,7 +6,7 @@ env:
   device: violet
   clang_version: r383902
   defconfig: |
-    sdmsteppe-perf_defconfig
+    vendor/sdmsteppe-perf_defconfig
   kernel_patch: |
     backport-path-umount.patch
   kernelsu_patch: |
