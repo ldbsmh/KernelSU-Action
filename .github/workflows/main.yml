@@ -4,9 +4,9 @@ env:
   kernel_repository: ldbsmh/android_kernel_xiaomi_sm6150
   kernel_branch: lineage-21
   device: violet
-  clang_version: r487747c
+  clang_version: r383902
   defconfig: |
-    dipper_defconfig
+    sdmsteppe-perf_defconfig
   kernel_patch: |
     backport-path-umount.patch
   kernelsu_patch: |
