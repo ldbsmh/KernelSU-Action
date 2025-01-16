@@ -73,7 +73,7 @@ jobs:
               clang_version=$(curl -L https://android.googlesource.com/kernel/common/+/refs/heads/android-mainline/build.config.constants | grep -Eo 'r[0-9]{6}[a-z]?[0-9]?')
               echo clang_version=$clang_version | tee -a $GITHUB_ENV
           fi
-
+          
       - name: Install packages
         run: |
           sudo apt update
