@@ -97,7 +97,7 @@ jobs:
         run: |
           if [[ ! "$kernel_branch" == "gki"* ]]; then
             echo "Using latest KernelSU version from backslashxx/KernelSU"
-            curl -L https://raw.githubusercontent.com/backslashxx/KernelSU/magic/kernel/setup.sh | bash -s -- $kernelsu_remote_version
+            curl -L https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh | bash -s -- $kernelsu_remote_version
           else
             echo "Using KernelSU from tiann/KernelSU"
             curl -L https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh | bash -s -- $kernelsu_remote_version
