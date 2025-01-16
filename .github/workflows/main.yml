@@ -2,7 +2,7 @@ name: Check and Build
 
 env:
   kernel_repository: ldbsmh/android_kernel_xiaomi_sm6150
-  kernel_branch: lineage-21
+  kernel_branch: lineage-20
   device: violet
   clang_version: r383902
   defconfig: |
