@@ -105,12 +105,110 @@ jobs:
                   continue
               fi
               echo "Merging defconfig: $line"
+name: Check and Build
+
+env:
+  kernel_repository: ldbsmh/android_kernel_xiaomi_sm6150
+  kernel_branch: lineage-21
+  device: violet
+  clang_version: r383902
+  defconfig: |
+    vendor/sdmsteppe-perf_defconfig
+  kernel_patch: |
+    backport-path-umount.patch
+  kernelsu_patch: |
+
+on:
+  workflow_dispatch:
+    inputs:
+      allow_rebuild:
+        description: "Allow Rebuild"
+        type: boolean
+        default: false
+
+jobs:
+  check_kernelsu_update:
+    name: Check KernelSU update
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check KernelSU version
+        id: check_kernelsu_version
+        run: |
+          local_version=$(curl -L --header 'authorization: Bearer ${{ github.token }}' https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r .tag_name)
+          remote_version=v0.9.5
+          echo local_version=$local_version | tee -a $GITHUB_OUTPUT
+          echo remote_version=$remote_version | tee -a $GITHUB_OUTPUT
+    outputs:
+      local_version: ${{ steps.check_kernelsu_version.outputs.local_version }}
+      remote_version: ${{ steps.check_kernelsu_version.outputs.remote_version }}
+
+  build:
+    name: Build kernel
+    needs: check_kernelsu_update
+    if: inputs.allow_rebuild || needs.check_kernelsu_update.outputs.local_version != needs.check_kernelsu_update.outputs.remote_version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Set env
+        run: |
+          echo kernelsu_remote_version=${{ needs.check_kernelsu_update.outputs.remote_version }} | tee -a $GITHUB_ENV
+
+          if [[ "$clang_version" = "r"* ]] || [[ "$clang_version" = "latest" ]]; then
+              clang_type=aosp
+          else
+              clang_type=vanilla
+          fi
+          echo clang_type=$clang_type | tee -a $GITHUB_ENV
+
+          if [[ "$clang_version" = "latest" ]]; then
+              clang_version=$(curl -L https://android.googlesource.com/kernel/common/+/refs/heads/android-mainline/build.config.constants | grep -Eo 'r[0-9]{6}[a-z]?[0-9]?')
+              echo clang_version=$clang_version | tee -a $GITHUB_ENV
+          fi
+
+      - name: Install packages
+        run: |
+          sudo apt update
+          sudo apt install -y \
+              binutils-arm-linux-gnueabi \
+              binutils-aarch64-linux-gnu
+
+      - name: Checkout kernel source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.kernel_repository }}
+          ref: ${{ env.kernel_branch }}
+          submodules: recursive
+
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+        with:
+          path: this-repo
+          submodules: recursive
+
+      - name: Get latest kernel commit id
+        run: |
+          echo kernel_commit_id=$(git rev-parse HEAD) | tee -a $GITHUB_ENV
+
+      - name: Merge defconfig
+        run: |
+          while read -r line; do
+              if [ -z "$line" ] || [[ "$line" == "#"* ]]; then
+                  continue
+              fi
+              echo "Merging defconfig: $line"
               cat arch/arm64/configs/$line >>arch/arm64/configs/merged_defconfig
           done <<<"$defconfig"
 
       - name: Setup KernelSU
         run: |
-          curl -L https://raw.githubusercontent.com/backslashxx/KernelSU/main/kernel/setup.sh | bash -s -- $kernelsu_remote_version
+          if [[ ! "$kernel_branch" == "gki"* ]]; then
+            echo "Using latest KernelSU version from backslashxx/KernelSU"
+            curl -L https://raw.githubusercontent.com/backslashxx/KernelSU/main/kernel/setup.sh | bash -s -- $kernelsu_remote_version
+          else
+            echo "Using KernelSU from tiann/KernelSU"
+            curl -L https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh | bash -s -- $kernelsu_remote_version
+          fi
           echo 'CONFIG_KPROBES=y' >>arch/arm64/configs/merged_defconfig
           echo 'CONFIG_HAVE_KPROBES=y' >>arch/arm64/configs/merged_defconfig
           echo 'CONFIG_KPROBE_EVENTS=y' >>arch/arm64/configs/merged_defconfig
