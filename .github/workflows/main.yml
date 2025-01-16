@@ -122,14 +122,6 @@ jobs:
               git apply -p2 --directory KernelSU/kernel "this-repo/patches/$line"
           done <<<"$kernelsu_patch"
 
-      - name: "AOSP-Clang: Restore"
-        id: aosp_clang_restore
-        if: env.clang_type == 'aosp'
-        uses: actions/cache/restore@v4
-        with:
-          path: aosp-clang
-          key: aosp-clang-${{ env.clang_version }}
-
       - name: "AOSP-Clang: Download"
         id: aosp_clang_download
         if: env.clang_type == 'aosp' && steps.aosp_clang_restore.outputs.cache-hit != 'true'
@@ -144,7 +136,7 @@ jobs:
               esac
           )
           mkdir -p aosp-clang
-          curl -L https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/$aosp_clang_branch/clang-$clang_version.tar.gz | tar xz -C aosp-clang
+          curl -L --retry 3 --retry-delay 5 https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/$aosp_clang_branch/clang-$clang_version.tar.gz | tar xz -C aosp-clang
 
       - name: "AOSP-Clang: Save"
         id: aosp_clang_save
@@ -182,7 +174,7 @@ jobs:
 
       - name: Make
         run: |
-          make $flags -j$(nproc --all)
+          make $flags -j4  # Reduced concurrency to avoid resource issues
 
       - name: AnyKernel3
         run: |
@@ -209,9 +201,16 @@ jobs:
           flash_boot
           EOF
 
-          cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3-master/
+          if [ -f out/arch/arm64/boot/Image.gz-dtb ]; then
+              cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3-master/
+          else
+              echo "Error: Image.gz-dtb not found!" && exit 1
+          fi
+
           if [ -f out/arch/arm64/boot/dtbo.img ]; then
               cp out/arch/arm64/boot/dtbo.img AnyKernel3-master/
+          else
+              echo "Warning: dtbo.img not found!"
           fi
 
           cd AnyKernel3-master
