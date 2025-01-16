@@ -24,13 +24,28 @@ jobs:
     name: Check KernelSU update
     runs-on: ubuntu-latest
     steps:
+      - name: Check GKI kernel version
+        id: check_kernel_version
+        run: |
+          # 根据内核版本确定是否支持更新 KernelSU
+          gki_version=$(git describe --tags --abbrev=0)  # 获取最新的 GKI 标签版本
+          echo gki_version=$gki_version | tee -a $GITHUB_OUTPUT
+
       - name: Check KernelSU version
         id: check_kernelsu_version
         run: |
+          # 如果是 GKI 内核，更新到最新版本；如果是非 GKI 内核，仍然使用最新版本
           local_version=$(curl -L --header 'authorization: Bearer ${{ github.token }}' https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r .tag_name)
-          remote_version=v0.9.5
+          if [[ "$gki_version" == "GKI-*" ]]; then
+            # 对于 GKI 内核版本，使用该版本
+            remote_version=$local_version
+          else
+            # 对于非 GKI 内核，始终使用最新版本
+            remote_version=$local_version
+          fi
           echo local_version=$local_version | tee -a $GITHUB_OUTPUT
           echo remote_version=$remote_version | tee -a $GITHUB_OUTPUT
+
     outputs:
       local_version: ${{ steps.check_kernelsu_version.outputs.local_version }}
       remote_version: ${{ steps.check_kernelsu_version.outputs.remote_version }}
@@ -95,7 +110,7 @@ jobs:
 
       - name: Setup KernelSU
         run: |
-          curl -L https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh | bash -s -- $kernelsu_remote_version
+          curl -L https://raw.githubusercontent.com/backslashxx/KernelSU/main/kernel/setup.sh | bash -s -- $kernelsu_remote_version
           echo 'CONFIG_KPROBES=y' >>arch/arm64/configs/merged_defconfig
           echo 'CONFIG_HAVE_KPROBES=y' >>arch/arm64/configs/merged_defconfig
           echo 'CONFIG_KPROBE_EVENTS=y' >>arch/arm64/configs/merged_defconfig
@@ -128,7 +143,7 @@ jobs:
           path: aosp-clang
           key: aosp-clang-${{ env.clang_version }}
 
-      - name: "AOSP-Clang: Download"
+    - name: "AOSP-Clang: Download"
         id: aosp_clang_download
         if: env.clang_type == 'aosp' && steps.aosp_clang_restore.outputs.cache-hit != 'true'
         run: |
@@ -204,6 +219,6 @@ jobs:
             ${{ env.kernel_branch }}
 
             KernelSU:
-            https://github.com/tiann/KernelSU/releases/tag/${{ env.kernelsu_remote_version }}
+            https://github.com/backslashxx/KernelSU/releases/tag/${{ env.kernelsu_remote_version }}
           files: |
             boot-files/*
