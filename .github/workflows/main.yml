@@ -24,113 +24,6 @@ jobs:
     name: Check KernelSU update
     runs-on: ubuntu-latest
     steps:
-      - name: Check GKI kernel version
-        id: check_kernel_version
-        run: |
-          # 根据内核版本确定是否支持更新 KernelSU
-          gki_version=$(git describe --tags --abbrev=0)  # 获取最新的 GKI 标签版本
-          echo gki_version=$gki_version | tee -a $GITHUB_OUTPUT
-
-      - name: Check KernelSU version
-        id: check_kernelsu_version
-        run: |
-          # 如果是 GKI 内核，更新到最新版本；如果是非 GKI 内核，仍然使用最新版本
-          local_version=$(curl -L --header 'authorization: Bearer ${{ github.token }}' https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r .tag_name)
-          if [[ "$gki_version" == "GKI-*" ]]; then
-            # 对于 GKI 内核版本，使用该版本
-            remote_version=$local_version
-          else
-            # 对于非 GKI 内核，始终使用最新版本
-            remote_version=$local_version
-          fi
-          echo local_version=$local_version | tee -a $GITHUB_OUTPUT
-          echo remote_version=$remote_version | tee -a $GITHUB_OUTPUT
-
-    outputs:
-      local_version: ${{ steps.check_kernelsu_version.outputs.local_version }}
-      remote_version: ${{ steps.check_kernelsu_version.outputs.remote_version }}
-
-  build:
-    name: Build kernel
-    needs: check_kernelsu_update
-    if: inputs.allow_rebuild || needs.check_kernelsu_update.outputs.local_version != needs.check_kernelsu_update.outputs.remote_version
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Set env
-        run: |
-          echo kernelsu_remote_version=${{ needs.check_kernelsu_update.outputs.remote_version }} | tee -a $GITHUB_ENV
-
-          if [[ "$clang_version" = "r"* ]] || [[ "$clang_version" = "latest" ]]; then
-              clang_type=aosp
-          else
-              clang_type=vanilla
-          fi
-          echo clang_type=$clang_type | tee -a $GITHUB_ENV
-
-          if [[ "$clang_version" = "latest" ]]; then
-              clang_version=$(curl -L https://android.googlesource.com/kernel/common/+/refs/heads/android-mainline/build.config.constants | grep -Eo 'r[0-9]{6}[a-z]?[0-9]?')
-              echo clang_version=$clang_version | tee -a $GITHUB_ENV
-          fi
-          
-      - name: Install packages
-        run: |
-          sudo apt update
-          sudo apt install -y \
-              binutils-arm-linux-gnueabi \
-              binutils-aarch64-linux-gnu
-
-      - name: Checkout kernel source
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ env.kernel_repository }}
-          ref: ${{ env.kernel_branch }}
-          submodules: recursive
-
-      - name: Checkout this repo
-        uses: actions/checkout@v4
-        with:
-          path: this-repo
-          submodules: recursive
-
-      - name: Get latest kernel commit id
-        run: |
-          echo kernel_commit_id=$(git rev-parse HEAD) | tee -a $GITHUB_ENV
-
-      - name: Merge defconfig
-        run: |
-          while read -r line; do
-              if [ -z "$line" ] || [[ "$line" == "#"* ]]; then
-                  continue
-              fi
-              echo "Merging defconfig: $line"
-name: Check and Build
-
-env:
-  kernel_repository: ldbsmh/android_kernel_xiaomi_sm6150
-  kernel_branch: lineage-21
-  device: violet
-  clang_version: r383902
-  defconfig: |
-    vendor/sdmsteppe-perf_defconfig
-  kernel_patch: |
-    backport-path-umount.patch
-  kernelsu_patch: |
-
-on:
-  workflow_dispatch:
-    inputs:
-      allow_rebuild:
-        description: "Allow Rebuild"
-        type: boolean
-        default: false
-
-jobs:
-  check_kernelsu_update:
-    name: Check KernelSU update
-    runs-on: ubuntu-latest
-    steps:
       - name: Check KernelSU version
         id: check_kernelsu_version
         run: |
@@ -241,7 +134,7 @@ jobs:
           path: aosp-clang
           key: aosp-clang-${{ env.clang_version }}
 
-    - name: "AOSP-Clang: Download"
+      - name: "AOSP-Clang: Download"
         id: aosp_clang_download
         if: env.clang_type == 'aosp' && steps.aosp_clang_restore.outputs.cache-hit != 'true'
         run: |
@@ -317,6 +210,6 @@ jobs:
             ${{ env.kernel_branch }}
 
             KernelSU:
-            https://github.com/backslashxx/KernelSU/releases/tag/${{ env.kernelsu_remote_version }}
+            https://github.com/tiann/KernelSU/releases/tag/${{ env.kernelsu_remote_version }}
           files: |
             boot-files/*
