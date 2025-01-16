@@ -28,6 +28,7 @@ jobs:
         id: check_kernelsu_version
         run: |
           local_version=$(curl -L --header 'authorization: Bearer ${{ github.token }}' https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r .tag_name)
+          # remote_version=$(curl -L https://api.github.com/repos/tiann/KernelSU/releases/latest | jq -r .tag_name)
           remote_version=v0.9.5
           echo local_version=$local_version | tee -a $GITHUB_OUTPUT
           echo remote_version=$remote_version | tee -a $GITHUB_OUTPUT
@@ -95,6 +96,7 @@ jobs:
 
       - name: Setup KernelSU
         run: |
+          # https://kernelsu.org/zh_CN/guide/how-to-integrate-for-non-gki.html
           curl -L https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh | bash -s -- $kernelsu_remote_version
           echo 'CONFIG_KPROBES=y' >>arch/arm64/configs/merged_defconfig
           echo 'CONFIG_HAVE_KPROBES=y' >>arch/arm64/configs/merged_defconfig
@@ -170,7 +172,7 @@ jobs:
           ARCH=arm64 \
           LLVM=1 \
           LLVM_IAS=1 \
-          CROSS_COMPILE=aarch64-linux-gnueabi- \
+          CROSS_COMPILE=aarch64-linux-gnu- \
           CROSS_COMPILE_ARM32=arm-linux-gnueabi-
           " | tee -a $GITHUB_ENV
 
@@ -182,13 +184,47 @@ jobs:
         run: |
           make $flags -j4  # Reduced concurrency to avoid resource issues
 
-      # 上传 out/arch/arm64/boot 目录中的所有文件
-      - name: Upload kernel boot files
+      - name: AnyKernel3
+        run: |
+          curl -Lo AnyKernel3.zip https://github.com/osm0sis/AnyKernel3/archive/refs/heads/master.zip
+          unzip AnyKernel3.zip
+
+          cat >AnyKernel3-master/anykernel.sh <<EOF
+          properties() { '
+          kernel.string=$kernel_repository $kernel_branch with KernelSU $kernelsu_remote_version for $device
+          do.devicecheck=1
+          do.modules=0
+          do.cleanup=1
+          do.cleanuponabort=1
+          device.name1=$device
+          '; }
+
+          block=auto
+          is_slot_device=auto
+          ramdisk_compression=auto
+          patch_vbmeta_flag=auto
+
+          . tools/ak3-core.sh
+          split_boot
+          flash_boot
+          EOF
+
+          if [ -f out/arch/arm64/boot/Image.gz ]; then
+              cp out/arch/arm64/boot/Image.gz AnyKernel3-master/
+          else
+              echo "Error: Image.gz not found!" && exit 1
+          fi
+
+          cd AnyKernel3-master
+          rm -rf .git* README.md
+          zip -r ../boot.zip *
+
+      - name: "Upload artifact"
         uses: actions/upload-artifact@v4
         with:
-          name: boot-files
-          path: out/arch/arm64/boot/*
-          
+          name: boot
+          path: AnyKernel3-master/*
+
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
@@ -206,4 +242,4 @@ jobs:
             KernelSU:
             https://github.com/tiann/KernelSU/releases/tag/${{ env.kernelsu_remote_version }}
           files: |
-            boot-files/*
+            boot.zip
