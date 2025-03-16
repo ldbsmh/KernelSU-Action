@@ -96,7 +96,7 @@ jobs:
       - name: Setup KernelSU
         run: |
           echo "Using rsuntk/KernelSU main branch"
-          curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/magic/kernel/setup.sh" | bash -s main
+          curl -LSs "https://raw.githubusercontent.com/ShirkNeko/KernelSU/main/kernel/setup.sh" | bash -s main
           echo 'CONFIG_KPROBES=y' >>arch/arm64/configs/merged_defconfig
           echo 'CONFIG_HAVE_KPROBES=y' >>arch/arm64/configs/merged_defconfig
           echo 'CONFIG_KPROBE_EVENTS=y' >>arch/arm64/configs/merged_defconfig
